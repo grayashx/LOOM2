@@ -1,0 +1,25 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { CheckCircle2, Gift, ShieldCheck, Sparkles, Target, Wallet } from "lucide-react";
+import QuestBoard from "@/components/QuestBoard";
+import { supabaseServer, isSupabaseConfigured } from "@/lib/supabase/server";
+import { AD_REWARD_ESSENCE, AD_DAILY_LIMIT } from "@/lib/economy";
+
+export const metadata: Metadata = { title: "Quests & rewards" };
+export default async function QuestsPage() {
+  const supabase=await supabaseServer();let signedIn=false;let rewarded=0;let paid=0;let userId:string|undefined;let rewardEssence=AD_REWARD_ESSENCE;let configuredDailyLimit=AD_DAILY_LIMIT;
+  if(supabase){const {data:{user}}=await supabase.auth.getUser();signedIn=Boolean(user);userId=user?.id;if(user){const {data}=await supabase.from("wallets").select("paid_essence,rewarded_essence").eq("user_id",user.id).maybeSingle();paid=Number(data?.paid_essence||0);rewarded=Number(data?.rewarded_essence||0);}}
+  if(supabase){const {data:quest}=await supabase.from("quests").select("reward_essence,daily_limit").eq("id","rewarded-video-daily").eq("active",true).maybeSingle();if(quest){rewardEssence=Number(quest.reward_essence)||AD_REWARD_ESSENCE;configuredDailyLimit=Math.max(1,Math.min(AD_DAILY_LIMIT,Number(quest.daily_limit)||AD_DAILY_LIMIT));}}
+  const demoMode=process.env.NODE_ENV!=="production" && isSupabaseConfigured() && !process.env.AD_PROVIDER_START_URL;
+  let sessionsUsedToday=0;
+  if(supabase&&userId){const start=new Date();start.setUTCHours(0,0,0,0);const nowIso=new Date().toISOString();const {count}=await supabase.from("ad_sessions").select("id",{count:"exact",head:true}).eq("user_id",userId).gte("created_at",start.toISOString()).or(`status.eq.completed,and(status.eq.pending,expires_at.gt.${nowIso})`);sessionsUsedToday=count||0;}
+  return <section className="section-wrap page-section quest-page"><div className="page-kicker"><Sparkles size={18}/> LOOM QUESTS</div><div className="page-title-row"><div><h1>Every little action <em>adds up.</em></h1><p>Earn Essence by completing verified quests, keep your paid and rewarded balance transparent, and spend on the stories you love.</p></div><div className="page-title-art quest-title-art"><Gift size={27}/></div></div>
+    {!isSupabaseConfigured()&&<div className="demo-banner">This page is in preview mode. Connect Supabase to create accounts and credit real test balances; no Essence can be claimed from this static preview.</div>}
+    {!signedIn&&isSupabaseConfigured()&&<div className="login-nudge"><ShieldCheck size={20}/><div><strong>Sign in to keep your rewards.</strong><p>Quest rewards are tied to your account and protected from duplicate claims.</p></div><Link className="button button-primary button-small" href="/login?next=%2Fquests">Sign in</Link></div>}
+    <div className="quest-wallet-row"><div className="quest-wallet-card"><div className="wallet-card-top"><span className="wallet-icon"><Sparkles size={18}/></span><span className="eyebrow">TOTAL ESSENCE</span></div><strong>{(paid+rewarded).toLocaleString()}</strong><div className="wallet-split"><span><span className="dot dot-paid"/>Paid <b>{paid.toLocaleString()}</b></span><span><span className="dot dot-reward"/>Rewarded <b>{rewarded.toLocaleString()}</b></span></div><Link className="text-link" href="/wallet">Open wallet <span>→</span></Link></div><div className="quest-progress-card"><div className="wallet-card-top"><span className="wallet-icon muted"><Target size={18}/></span><span className="eyebrow">TODAY'S QUESTS</span></div><strong>{sessionsUsedToday}<small> / {configuredDailyLimit}</small></strong><div className="progress-track"><span style={{width:`${Math.min(100,sessionsUsedToday/configuredDailyLimit*100)}%`}}/></div><p>{Math.max(0,configuredDailyLimit-sessionsUsedToday)} ad {configuredDailyLimit-sessionsUsedToday===1?"session":"sessions"} available today. Expired sessions do not count.</p></div></div>
+    <div className="quest-section-head"><div><div className="eyebrow">AVAILABLE NOW</div><h2>Daily quests</h2></div><span className="tag"><CheckCircle2 size={13}/> Refreshes daily</span></div>
+    <QuestBoard demoMode={demoMode} rewardEssence={rewardEssence}/>
+    <div className="quest-fairness"><ShieldCheck size={20}/><div><strong>Rewards are earned, not guessed.</strong><p>LOOM only credits production rewards after a valid, unexpired, unique provider callback. A browser click, ad-start request, repeated callback, or edited amount cannot mint Essence. This development simulator is disabled in production.</p></div></div>
+    <div className="quest-rules-grid"><article><Gift size={19}/><h3>Rewarded Essence</h3><p>Quest-funded, tracked separately, and eligible for chapter unlocks. It is not treated as purchased revenue for creator payouts.</p></article><article><Wallet size={19}/><h3>Purchased Essence</h3><p>Non-expiring, credited from a verified payment webhook, and source-tracked in an append-only ledger.</p></article><article><Sparkles size={19}/><h3>Resonance</h3><p>A separate daily support signal. It can never be bought and never changes the public ranking lists.</p></article></div>
+  </section>;
+}

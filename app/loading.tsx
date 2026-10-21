@@ -1,0 +1,1 @@
+export default function Loading(){return <section className="section-wrap page-section"><div className="loading-kicker"/><div className="loading-title"/><div className="loading-copy"/><div className="loading-grid">{[0,1,2,3].map(i=><div className="loading-card" key={i}><div/><span/><span/><span/></div>)}</div></section>;}
